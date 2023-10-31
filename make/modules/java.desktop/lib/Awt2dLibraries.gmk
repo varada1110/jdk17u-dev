@@ -241,12 +241,27 @@ ifeq ($(call isTargetOs, windows macosx), false)
         CFLAGS := $(CFLAGS_JDKLIB) $(LIBAWT_XAWT_CFLAGS) \
             $(X_CFLAGS), \
         WARNINGS_AS_ERRORS_xlc := false, \
-        DISABLED_WARNINGS_gcc := type-limits pointer-to-int-cast \
-            unused-result maybe-uninitialized format \
-            format-security int-to-pointer-cast parentheses \
-            implicit-fallthrough undef unused-function, \
-        DISABLED_WARNINGS_clang := parentheses format undef \
-            logical-op-parentheses format-nonliteral int-conversion, \
+        DISABLED_WARNINGS_gcc := int-to-pointer-cast, \
+        DISABLED_WARNINGS_gcc_awt_Taskbar.c := parentheses, \
+        DISABLED_WARNINGS_gcc_GLXSurfaceData.c := unused-function, \
+        DISABLED_WARNINGS_gcc_gtk2_interface.c := parentheses type-limits, \
+        DISABLED_WARNINGS_gcc_gtk3_interface.c := parentheses type-limits unused-function, \
+        DISABLED_WARNINGS_gcc_OGLBufImgOps.c := format-nonliteral, \
+        DISABLED_WARNINGS_gcc_OGLPaints.c := format-nonliteral, \
+        DISABLED_WARNINGS_gcc_sun_awt_X11_GtkFileDialogPeer.c := parentheses, \
+        DISABLED_WARNINGS_gcc_X11SurfaceData.c := implicit-fallthrough pointer-to-int-cast, \
+        DISABLED_WARNINGS_gcc_XlibWrapper.c := type-limits pointer-to-int-cast, \
+        DISABLED_WARNINGS_gcc_XRBackendNative.c := maybe-uninitialized, \
+        DISABLED_WARNINGS_gcc_XToolkit.c := unused-result, \
+        DISABLED_WARNINGS_gcc_XWindow.c := unused-function, \
+        DISABLED_WARNINGS_clang_aix := deprecated-non-prototype, \
+        DISABLED_WARNINGS_clang_aix_awt_Taskbar.c := parentheses, \
+        DISABLED_WARNINGS_clang_aix_OGLPaints.c := format-nonliteral, \
+        DISABLED_WARNINGS_clang_aix_OGLBufImgOps.c := format-nonliteral, \
+        DISABLED_WARNINGS_clang_aix_gtk2_interface.c := parentheses logical-op-parentheses, \
+        DISABLED_WARNINGS_clang_aix_gtk3_interface.c := parentheses logical-op-parentheses, \
+        DISABLED_WARNINGS_clang_aix_sun_awt_X11_GtkFileDialogPeer.c := parentheses, \
+        DISABLED_WARNINGS_clang_aix_awt_InputMethod.c := sign-compare, \
         LDFLAGS := $(LDFLAGS_JDKLIB) \
             $(call SET_SHARED_LIBRARY_ORIGIN) \
             -L$(INSTALL_LIBRARIES_HERE), \
@@ -454,7 +469,9 @@ else
    # Early re-canonizing has to be disabled to workaround an internal XlC compiler error
    # when building libharfbuzz
    ifeq ($(call isTargetOs, aix), true)
+    ifneq ($(TOOLCHAIN_TYPE), clang)
      HARFBUZZ_CFLAGS += -qdebug=necan
+    endif
    endif
 
    # hb-ft.cc is not presently needed, and requires freetype 2.4.2 or later.
@@ -704,6 +721,20 @@ ifeq ($(ENABLE_HEADLESS_ONLY), false)
 
   ifeq ($(call isTargetOs, linux), true)
     ifeq ($(call isTargetCpuArch, ppc), true)
+      LIBSPLASHSCREEN_CFLAGS += -DPNG_POWERPC_VSX_OPT=0
+    endif
+  endif
+
+  # The external libpng submitted in the jdk is a reduced version
+  # which does not contain .png_init_filter_functions_vsx.
+  # Therefore we need to disable PNG_POWERPC_VSX_OPT explicitly by setting
+  # it to 0. If this define is not set, it would be automatically set to 2,
+  # because
+  #   "#if defined(__PPC64__) && defined(__ALTIVEC__) && defined(__VSX__)"
+  # expands to true. This would results in the fact that
+  # .png_init_filter_functions_vsx is needed in libpng.
+  ifeq ($(call isTargetOs, aix), true)
+    ifeq ($(TOOLCHAIN_TYPE), clang)
       LIBSPLASHSCREEN_CFLAGS += -DPNG_POWERPC_VSX_OPT=0
     endif
   endif
