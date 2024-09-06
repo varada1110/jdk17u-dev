@@ -583,8 +583,8 @@ class ServerSocketChannelImpl
             if (!tryClose()) {
                 long th = thread;
                 if (th != 0) {
-                    nd.preClose(fd);
                     NativeThread.signal(th);
+                    nd.preClose(fd);
                 }
             }
         }
