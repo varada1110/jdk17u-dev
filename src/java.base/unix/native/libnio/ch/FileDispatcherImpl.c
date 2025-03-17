@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <sys/uio.h>
 #include <unistd.h>
 #ifdef MACOSX
@@ -314,13 +315,73 @@ Java_sun_nio_ch_FileDispatcherImpl_close0(JNIEnv *env, jclass clazz, jobject fdo
     closeFileDescriptor(env, fd);
 }
 
+
+static int result;  // Global variable to store dup2() result
+
+// Wrapper function for calling dup2() in a separate thread
+void* dup2_wrapper(void* arg) {
+    int* fds = (int*)arg;
+    if (dup2(fds[0], fds[1]) >= 0) {
+        result = 0;
+	fprintf(stderr, "Thread completed: dup2 successful\n");
+
+    } else {
+        result = errno;
+	fprintf(stderr,"Thread completed: dup2 failed with errno %d\n", result);
+    }
+    return NULL;
+}
+
 JNIEXPORT void JNICALL
-Java_sun_nio_ch_FileDispatcherImpl_preClose0(JNIEnv *env, jclass clazz, jobject fdo)
-{
+Java_sun_nio_ch_FileDispatcherImpl_preClose0(JNIEnv *env, jclass clazz, jobject fdo) {
     jint fd = fdval(env, fdo);
     if (preCloseFD >= 0) {
-        if (dup2(preCloseFD, fd) < 0)
+        pthread_t thread;
+        int fds[2] = {preCloseFD, fd};  // Pass both FDs to the thread
+        int newfd = -1;
+
+        // Create a new thread to perform dup2()
+        if (pthread_create(&thread, NULL, dup2_wrapper, &fds) == 0) {
+            struct timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = 100000000;  // 500ms sleep interval
+
+            time_t start_time = time(NULL);
+
+            // Wait up to 2 seconds for the thread to finish
+            while (1) {
+                if (pthread_kill(thread, 0) == ESRCH) {  
+                    // Thread has exited
+                    pthread_join(thread, NULL);
+                    break;
+                }
+
+                if (time(NULL) - start_time > 2) {  
+                    // Timeout reached, cancel thread
+                    fprintf(stderr, "dup2() hung, falling back to fcntl()\n");
+                    int cancel_status = pthread_cancel(thread);
+		    if (cancel_status != 0) {
+			    fprintf(stderr, "pthread_cancel failed with error %d\n", cancel_status);
+			    pthread_kill(thread, SIGKILL);
+		    }
+		    pthread_detach(thread);
+                    pthread_join(thread, NULL);  // Clean up resources
+                    newfd = fcntl(preCloseFD, F_DUPFD, 0);
+		    if (newfd < 0) {
+    			    fprintf(stderr, "fcntl() failed with errno %d\n", errno);
+    		   } else {
+       			 fprintf(stderr, "fcntl() succeeded, new FD = %d\n", newfd);
+  		  }
+                    break;
+                }
+
+                nanosleep(&ts, NULL);  // Sleep for 500ms before retrying
+            }
+        }
+
+        if (newfd < 0 && result != 0) {
             JNU_ThrowIOExceptionWithLastError(env, "dup2 failed");
+        }
     }
 }
 
