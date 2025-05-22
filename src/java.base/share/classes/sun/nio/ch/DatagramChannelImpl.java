@@ -88,6 +88,8 @@ class DatagramChannelImpl
     // true if interruptible (can be false to emulate legacy DatagramSocket)
     private final boolean interruptible;
 
+    private long thread;
+
     // The protocol family of the socket
     private final ProtocolFamily family;
 
@@ -1732,7 +1734,8 @@ class DatagramChannelImpl
                 long reader = readerThread;
                 long writer = writerThread;
                 if (reader != 0 || writer != 0) {
-                    nd.preClose(fd);
+                    long th = thread;
+                    nd.preClose(fd, reader, writer);
                     if (reader != 0)
                         NativeThread.signal(reader);
                     if (writer != 0)

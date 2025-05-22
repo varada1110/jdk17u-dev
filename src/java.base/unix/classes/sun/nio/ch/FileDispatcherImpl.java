@@ -38,6 +38,9 @@ class FileDispatcherImpl extends FileDispatcher {
         init();
     }
 
+    private static final boolean SUPPORTS_PENDING_SIGNALS = NativeThread.supportPendingSignals();
+
+
     private static final JavaIOFileDescriptorAccess fdAccess =
             SharedSecrets.getJavaIOFileDescriptorAccess();
 
@@ -104,8 +107,22 @@ class FileDispatcherImpl extends FileDispatcher {
         fdAccess.close(fd);
     }
 
-    void preClose(FileDescriptor fd) throws IOException {
+    private void signalThreads(long reader, long writer) {
+         if (NativeThread.isNativeThread(reader))
+             NativeThread.signal(reader);
+         if (NativeThread.isNativeThread(writer))
+             NativeThread.signal(writer);
+     }
+
+    @Override
+    void implPreClose(FileDescriptor fd, long reader, long writer) throws IOException {
+        if (SUPPORTS_PENDING_SIGNALS) {
+            signalThreads(reader, writer);
+        }
         preClose0(fd);
+        if (!SUPPORTS_PENDING_SIGNALS) {
+            signalThreads(reader, writer);
+        }
     }
 
     void dup(FileDescriptor fd1, FileDescriptor fd2) throws IOException {

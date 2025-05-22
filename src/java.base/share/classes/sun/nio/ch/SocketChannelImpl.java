@@ -82,6 +82,8 @@ class SocketChannelImpl
     private final FileDescriptor fd;
     private final int fdVal;
 
+    private long thread;
+
     // Lock held by current reading or connecting thread
     private final ReentrantLock readLock = new ReentrantLock();
 
@@ -1014,7 +1016,8 @@ class SocketChannelImpl
                 long reader = readerThread;
                 long writer = writerThread;
                 if (reader != 0 || writer != 0) {
-                    nd.preClose(fd);
+                    long th = thread;
+                    nd.preClose(fd, reader, writer);
                     if (reader != 0)
                         NativeThread.signal(reader);
                     if (writer != 0)

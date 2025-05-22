@@ -87,6 +87,8 @@ public final class NioSocketImpl extends SocketImpl implements PlatformSocketImp
     // true if this is a SocketImpl for a ServerSocket
     private final boolean server;
 
+    private long thread;
+
     // Lock held when reading (also used when accepting or connecting)
     private final ReentrantLock readLock = new ReentrantLock();
 
@@ -908,12 +910,14 @@ public final class NioSocketImpl extends SocketImpl implements PlatformSocketImp
             // attempt to close the socket. If there are I/O operations in progress
             // then the socket is pre-closed and the thread(s) signalled. The
             // last thread will close the file descriptor.
+	    long reader = readerThread;
+	    long writer = writerThread;
             if (!tryClose()) {
-                nd.preClose(fd);
-                long reader = readerThread;
+		System.out.println("hi........\n");    
+                nd.preClose(fd, reader, writer);
+		System.out.println("bye.......\n");
                 if (reader != 0)
                     NativeThread.signal(reader);
-                long writer = writerThread;
                 if (writer != 0)
                     NativeThread.signal(writer);
             }

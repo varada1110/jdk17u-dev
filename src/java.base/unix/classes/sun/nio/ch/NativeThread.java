@@ -49,7 +49,18 @@ public class NativeThread {
     // operation.  On systems that do not require signalling, this method has
     // no effect.
     //
+
+    static boolean supportPendingSignals() {
+        return supportPendingSignals0();
+    }
+
+    private static native boolean supportPendingSignals0();
+
     public static native void signal(long nt);
+
+    static boolean isNativeThread(long tid) {
+        return false;
+    }
 
     private static native void init();
 

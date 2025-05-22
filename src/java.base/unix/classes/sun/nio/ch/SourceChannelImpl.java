@@ -123,7 +123,7 @@ class SourceChannelImpl
             if (!tryClose()) {
                 long th = thread;
                 if (th != 0) {
-                    nd.preClose(fd);
+                    nd.preClose(fd, th, 0);
                     NativeThread.signal(th);
                 }
             }
